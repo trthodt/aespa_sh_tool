@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "aespa SH support",
+  "version": "1.0",
+  "description": "Chrome Extension Base Project",
+
+  "icons": {
+    "16": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
+
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
+    }
+  },
+
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "js": ["src/content/content.js"],
+      "matches": ["https://www.stationhead.com/*"]
+    }
+  ],
+
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": ["https://www.stationhead.com/*"]
+}
