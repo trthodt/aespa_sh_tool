@@ -1,16 +1,16 @@
-// Stationhead's DOM uses styled-components class names that are regenerated
-// on every deploy, so we locate the "Up next" queue by its visible text
-// instead of relying on any class name.
+// The site's class names are regenerated on every deploy, so we locate the
+// queue by its visible section header text instead of relying on any class
+// name. Each queued track (but not the "Now playing" row) renders a drag
+// handle with a stable "cursor-grab" class, so that's what we count.
 export function computeQueueCount(doc = document) {
-  const headers = Array.from(doc.querySelectorAll("p"));
-  const upNextHeader = headers.find((p) => p.textContent?.trim() === "Up next");
-  if (!upNextHeader) return null;
+  const headers = Array.from(doc.querySelectorAll("span"));
+  const queueHeader = headers.find((span) => span.textContent?.trim() === "Next in show playlist");
+  if (!queueHeader) return null;
 
-  const headerRow = upNextHeader.parentElement;
-  const container = headerRow?.parentElement;
-  if (!container) return null;
+  const section = queueHeader.closest("section");
+  if (!section) return null;
 
-  return container.querySelectorAll('[draggable="true"]').length;
+  return section.querySelectorAll(".cursor-grab").length;
 }
 
 export function watchQueue(onChange, { debounceMs = 250 } = {}) {

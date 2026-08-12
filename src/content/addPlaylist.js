@@ -1,53 +1,42 @@
-// Stationhead's class names (sc-xxxxx) are regenerated on every deploy, so
-// every lookup here matches on visible text/structure instead.
-import {
-  sleep,
-  waitFor,
-  findByExactText,
-  findButtonByText,
-  findButtonStartingWith,
-  simulateClick,
-} from "./dom";
+// The site's class names are regenerated on every deploy, so every lookup
+// here matches on visible text/structure instead.
+import { sleep, waitFor, findByExactText, findButtonByText, simulateClick } from "./dom";
 import { computeQueueCount } from "./queue";
 import { ensureNetworkHookInstalled, waitForQueueSettled } from "./networkQueueSignal";
 
 const log = (...args) => console.log("[SH-ext]", ...args);
 
-function getUpNextAddButton() {
-  const header = findByExactText("p", "Up next");
-  const headerRow = header?.parentElement;
-  return headerRow?.querySelector('button[aria-label="add"]') ?? null;
-}
-
-// When the queue is empty there is no "Up next" header at all - instead
-// Stationhead shows an "Add some music" call-to-action button.
-function getEmptyQueueAddButton() {
-  return findButtonByText("Add some music");
-}
-
 function getAddMusicButton() {
-  return getUpNextAddButton() ?? getEmptyQueueAddButton();
+  return findButtonByText("Add music");
 }
 
-function getMyPlaylistsListContainer() {
-  const label = findByExactText("div", "My playlists");
-  return label?.parentElement?.nextElementSibling ?? null;
+function getLibraryButton() {
+  return findButtonByText("My Spotify Library");
+}
+
+function getPlaylistsListContainer() {
+  const header = findByExactText("h4", "Playlists");
+  return header?.nextElementSibling ?? null;
 }
 
 function findPlaylistRow(name) {
-  const listContainer = getMyPlaylistsListContainer();
+  const listContainer = getPlaylistsListContainer();
   if (!listContainer) return null;
 
   const needle = name.trim().toLowerCase();
-  const rows = Array.from(listContainer.querySelectorAll('div[style*="cursor: pointer"]'));
-  return rows.find((row) => row.querySelector("p")?.textContent?.trim().toLowerCase().includes(needle)) ?? null;
+  const rows = Array.from(listContainer.querySelectorAll("button"));
+  return (
+    rows.find((row) => row.querySelector(".body-2")?.textContent?.trim().toLowerCase().includes(needle)) ?? null
+  );
 }
 
+// The playlist strip scrolls horizontally and isn't necessarily fully
+// rendered up front, so scroll it into view a bit at a time while looking.
 async function findPlaylistRowWithScroll(name, { attempts = 5, scrollDelay = 400 } = {}) {
   for (let i = 0; i < attempts; i++) {
     const row = findPlaylistRow(name);
     if (row) return row;
-    getMyPlaylistsListContainer()?.scrollBy?.(0, 600);
+    getPlaylistsListContainer()?.scrollBy?.(600, 0);
     await sleep(scrollDelay);
   }
   return findPlaylistRow(name);
@@ -100,23 +89,35 @@ async function waitForAddConfirmation(startCount, { timeout = 30000 } = {}) {
   });
 }
 
-// The "Add music" h3 only exists on the modal's root search screen - once a
-// playlist is opened that screen (and its h3) is gone even though the modal
-// itself (now showing Back/Close + the track list) is still open. The
-// "Close" button, unlike the h3, is present on every screen of the modal, so
-// its absence is the only reliable "fully closed" signal.
-async function closeAddMusicModal({ attempts = 12, delay = 500 } = {}) {
+// The "Add tracks" title is present on every screen of the modal (root
+// search, library, playlist track list), so its absence is the only
+// reliable "fully closed" signal.
+function isAddTracksModalOpen() {
+  return !!findByExactText("span", "Add tracks");
+}
+
+// The close button is icon-only (an X, no text content), so it has to be
+// matched by its data-slot rather than by visible text.
+function getModalCloseButton() {
+  return document.querySelector('[data-slot="modal-close-trigger"]');
+}
+
+async function closeAddMusicModal({ attempts = 12, delay = 400 } = {}) {
   for (let i = 0; i < attempts; i++) {
-    const closeBtn = findButtonByText("Close");
-    if (!closeBtn) {
+    if (!isAddTracksModalOpen()) {
       log(`Modal closed (confirmed after ${i} attempt(s))`);
       return true;
     }
+    const closeBtn = getModalCloseButton();
     log(`Close attempt ${i + 1}/${attempts}`, closeBtn);
-    simulateClick(closeBtn);
+    if (closeBtn) {
+      simulateClick(closeBtn);
+    } else {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }));
+    }
     await sleep(delay);
   }
-  const stillOpen = !!findButtonByText("Close");
+  const stillOpen = isAddTracksModalOpen();
   log(stillOpen ? "Modal still open after all close attempts - giving up" : "Modal closed on final check");
   return !stillOpen;
 }
@@ -139,14 +140,22 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
   notify("Opening add music...");
   const addButton = getAddMusicButton();
   if (!addButton) {
-    throw new Error('Could not find an "add music" button on this page');
+    throw new Error('Could not find an "Add music" button on this page');
   }
   simulateClick(addButton);
 
-  await waitFor(() => findByExactText("h3", "Add music"));
+  await waitFor(() => getLibraryButton());
   await sleep(300);
 
+  notify("Opening Spotify library...");
+  const libraryButton = getLibraryButton();
+  if (!libraryButton) {
+    throw new Error('Could not find the "My Spotify Library" option');
+  }
+  simulateClick(libraryButton);
+
   notify(`Looking for playlist "${playlistName}"...`);
+  await waitFor(() => findByExactText("h4", "Playlists"), { timeout: 5000 });
   const row = await findPlaylistRowWithScroll(playlistName);
   if (!row) {
     await closeAddMusicModal();
@@ -156,17 +165,17 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
   simulateClick(row);
 
   notify("Opening playlist...");
-  await waitFor(() => findButtonStartingWith("All songs"), { timeout: 5000 });
+  await waitFor(() => findButtonByText("Add all"), { timeout: 5000 });
   // The button renders before the track list data behind it has finished
   // loading - give it a moment to settle before clicking.
   await sleep(900);
 
-  const allSongsBtn = findButtonStartingWith("All songs");
-  if (!allSongsBtn) {
-    throw new Error('"All songs" button disappeared before it could be clicked');
+  const addAllBtn = findButtonByText("Add all");
+  if (!addAllBtn) {
+    throw new Error('"Add all" button disappeared before it could be clicked');
   }
-  log("Clicking All songs", allSongsBtn);
-  simulateClick(allSongsBtn);
+  log("Clicking Add all", addAllBtn);
+  simulateClick(addAllBtn);
 
   notify("Waiting for songs to be added...");
   const confirmation = await waitForAddConfirmation(startCount);
@@ -176,7 +185,7 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
 
   if (!confirmation) {
     throw new Error(
-      `Clicked "All songs" but never saw confirmation (was ${startCount ?? 0} songs). It may still be loading - check Stationhead directly.`
+      `Clicked "Add all" but never saw confirmation (was ${startCount ?? 0} songs). It may still be loading - check the page directly.`
     );
   }
 
