@@ -80,7 +80,7 @@ export default function App() {
       <button
         onClick={() => setMinimizedPersist(false)}
         title="Expand Stationhead Queue"
-        className="fixed top-[76px] right-4 z-[9999] bg-white shadow-lg rounded-full w-11 h-11 border border-gray-200 flex items-center justify-center text-sm font-semibold text-gray-800"
+        className="fixed top-[102px] right-4 z-[9999] bg-white shadow-lg rounded-full w-11 h-11 border border-gray-200 flex items-center justify-center text-sm font-semibold text-gray-800"
       >
         {count ?? "-"}
       </button>
@@ -88,7 +88,7 @@ export default function App() {
   }
 
   return (
-    <div className="fixed top-[76px] right-4 bg-white shadow-lg rounded-xl p-3 z-[9999] w-72 border border-gray-200">
+    <div className="fixed top-[102px] right-4 bg-white shadow-lg rounded-xl p-3 z-[9999] w-72 border border-gray-200">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-semibold text-gray-800">Stationhead Queue</h2>
         <div className="flex items-center gap-2">
