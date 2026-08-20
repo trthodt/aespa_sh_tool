@@ -6,7 +6,7 @@ const DEFAULT_THRESHOLD = 10;
 
 export default function App() {
   const [{ count }, setQueue] = useState(getQueueState());
-  const [playlistName, setPlaylistName] = useState("[STREAM_aespa]");
+  const [playlistName, setPlaylistName] = useState("");
   const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [status, setStatus] = useState(null);
@@ -145,7 +145,7 @@ export default function App() {
           <p className="text-xs text-gray-400">Auto-add: {autoEnabled ? "On" : "Off"}</p>
           <button
             onClick={() => triggerAddPlaylist(playlistName)}
-            disabled={!playlistName.trim() || isRunning}
+            disabled={isRunning}
             className="mt-2 w-full text-sm bg-purple-600 text-white rounded py-1 disabled:opacity-50"
           >
             {isRunning ? "Adding..." : "Add playlist now"}
@@ -173,7 +173,8 @@ export default function App() {
             className="mt-1 w-full text-sm border border-gray-300 bg-white rounded px-2 py-1 text-gray-900"
           />
           <p className="text-xs text-gray-400 mt-1">
-            Matches any of your saved playlists whose name contains this text.
+            Matches any of your saved playlists whose name contains this text. Leave empty to use your first saved
+            playlist.
           </p>
 
           <label className="text-xs font-medium text-gray-600 mt-3 block">Auto-add when queue drops to</label>

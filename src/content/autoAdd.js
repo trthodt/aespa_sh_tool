@@ -1,5 +1,7 @@
 import { addPlaylistToQueue } from "./addPlaylist";
 
+const log = (...args) => console.log("[SH-ext]", ...args);
+
 const AUTO_ADD_THRESHOLD = 10;
 
 let running = false;
@@ -34,15 +36,31 @@ export async function triggerAddPlaylist(playlistName) {
 // Fires once per dip below the threshold; re-arms once the queue climbs
 // back above it, so a small playlist can't retrigger in a tight loop.
 export function maybeAutoTrigger(count, playlistName, threshold = AUTO_ADD_THRESHOLD, enabled = true) {
-  if (!enabled || count === null) return;
+  if (!enabled) {
+    log("Auto-add skipped: disabled in settings");
+    return;
+  }
+  if (count === null) {
+    log("Auto-add skipped: queue count unavailable (selector didn't match this page)");
+    return;
+  }
 
   if (count > threshold) {
     armed = true;
     return;
   }
 
-  if (!armed || running || !playlistName?.trim()) return;
+  if (running) {
+    log("Auto-add skipped: already running");
+    return;
+  }
+  if (!armed) {
+    log(`Auto-add skipped: not armed yet (queue count ${count} <= threshold ${threshold})`);
+    return;
+  }
 
   armed = false;
+  const label = playlistName?.trim() || "first saved playlist";
+  log(`Auto-add triggered: queue count ${count} <= threshold ${threshold}, adding "${label}"`);
   triggerAddPlaylist(playlistName);
 }

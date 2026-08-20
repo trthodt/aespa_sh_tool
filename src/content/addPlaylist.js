@@ -30,16 +30,25 @@ function findPlaylistRow(name) {
   );
 }
 
+// No keyword configured - just use whatever playlist is first in the list.
+function findFirstPlaylistRow() {
+  const listContainer = getPlaylistsListContainer();
+  if (!listContainer) return null;
+  return listContainer.querySelector("button") ?? null;
+}
+
 // The playlist strip scrolls horizontally and isn't necessarily fully
 // rendered up front, so scroll it into view a bit at a time while looking.
 async function findPlaylistRowWithScroll(name, { attempts = 5, scrollDelay = 400 } = {}) {
+  const pickFirst = !name?.trim();
+  const lookup = pickFirst ? findFirstPlaylistRow : () => findPlaylistRow(name);
   for (let i = 0; i < attempts; i++) {
-    const row = findPlaylistRow(name);
+    const row = lookup();
     if (row) return row;
     getPlaylistsListContainer()?.scrollBy?.(600, 0);
     await sleep(scrollDelay);
   }
-  return findPlaylistRow(name);
+  return lookup();
 }
 
 // The queue count only moves once Stationhead finishes actually queuing the
@@ -128,9 +137,7 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
     onStatus?.(message);
   };
 
-  if (!playlistName?.trim()) {
-    throw new Error("No playlist name configured");
-  }
+  const hasName = !!playlistName?.trim();
 
   await ensureNetworkHookInstalled();
 
@@ -154,14 +161,17 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
   }
   simulateClick(libraryButton);
 
-  notify(`Looking for playlist "${playlistName}"...`);
+  notify(hasName ? `Looking for playlist "${playlistName}"...` : "No playlist configured - using your first saved playlist...");
   await waitFor(() => findByExactText("h4", "Playlists"), { timeout: 5000 });
   const row = await findPlaylistRowWithScroll(playlistName);
   if (!row) {
     await closeAddMusicModal();
-    throw new Error(`Playlist "${playlistName}" not found in your saved playlists`);
+    throw new Error(
+      hasName ? `Playlist "${playlistName}" not found in your saved playlists` : "No saved playlists found"
+    );
   }
-  log("Found playlist row, clicking it", row);
+  const rowName = row.querySelector(".body-2")?.textContent?.trim();
+  log(`Found playlist row (${hasName ? "matched" : "first"}${rowName ? `: "${rowName}"` : ""}), clicking it`, row);
   simulateClick(row);
 
   notify("Opening playlist...");
