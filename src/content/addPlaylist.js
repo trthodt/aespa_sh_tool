@@ -98,37 +98,33 @@ async function waitForAddConfirmation(startCount, { timeout = 30000 } = {}) {
   });
 }
 
-// The "Add tracks" title is present on every screen of the modal (root
-// search, library, playlist track list), so its absence is the only
-// reliable "fully closed" signal.
-function isAddTracksModalOpen() {
-  return !!findByExactText("span", "Add tracks");
-}
-
-// The close button is icon-only (an X, no text content), so it has to be
-// matched by its data-slot rather than by visible text.
-function getModalCloseButton() {
-  return document.querySelector('[data-slot="modal-close-trigger"]');
+// The "Add tracks" flow no longer closes via an X button - the redesigned
+// UI is a stack of screens (root search, library, playlist track list) that
+// you navigate back out of one at a time. There's no reliable "fully
+// closed" marker on the modal itself, so instead we keep clicking Back
+// until we're back on the show page and the queue count can be read again.
+function getBackButton() {
+  return document.querySelector('button[aria-label="Back"]');
 }
 
 async function closeAddMusicModal({ attempts = 12, delay = 400 } = {}) {
   for (let i = 0; i < attempts; i++) {
-    if (!isAddTracksModalOpen()) {
-      log(`Modal closed (confirmed after ${i} attempt(s))`);
+    if (computeQueueCount() !== null) {
+      log(`Back navigation done (queue count visible after ${i} attempt(s))`);
       return true;
     }
-    const closeBtn = getModalCloseButton();
-    log(`Close attempt ${i + 1}/${attempts}`, closeBtn);
-    if (closeBtn) {
-      simulateClick(closeBtn);
+    const backBtn = getBackButton();
+    log(`Back attempt ${i + 1}/${attempts}`, backBtn);
+    if (backBtn) {
+      simulateClick(backBtn);
     } else {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }));
     }
     await sleep(delay);
   }
-  const stillOpen = isAddTracksModalOpen();
-  log(stillOpen ? "Modal still open after all close attempts - giving up" : "Modal closed on final check");
-  return !stillOpen;
+  const visible = computeQueueCount() !== null;
+  log(visible ? "Queue count visible on final check" : "Queue count still unavailable after all back attempts - giving up");
+  return visible;
 }
 
 export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
@@ -200,6 +196,6 @@ export async function addPlaylistToQueue(playlistName, { onStatus } = {}) {
   }
 
   notify(
-    `Done (${confirmation.source}) - queue now has ${confirmation.count} songs${closed ? "" : " (modal still open)"}`
+    `Done (${confirmation.source}) - queue now has ${confirmation.count} songs${closed ? "" : " (still navigating back to show)"}`
   );
 }
